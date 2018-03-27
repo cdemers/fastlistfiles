@@ -51,6 +51,8 @@ func main() {
 	jobs := make(chan ListFilesJob, *workercount*10)
 	defer close(jobs)
 
+	// TODO: Reap threads completion message in parallel instead of waiting at
+	// the end of the list process.
 	jobResults := make(chan ListFilesResult, 100000000) // Woah! 100 millions FTW! :D
 	defer close(jobResults)
 
@@ -99,7 +101,7 @@ func worker(workerID int, jobs <-chan ListFilesJob, results chan<- ListFilesResu
 				fmt.Printf("%s\n", osPathname)
 				return nil
 			},
-			Unsorted: job.Sorted,
+			Unsorted: !job.Sorted,
 		})
 
 		results <- ListFilesResult{
@@ -112,6 +114,7 @@ func worker(workerID int, jobs <-chan ListFilesJob, results chan<- ListFilesResu
 
 }
 
+// WARNING: Version 0.8 in progress, use version 0.6 if you want something stable.
 func splitFoldersTree(basePath string) (paths []string, err error) {
 
 	err = godirwalk.Walk(basePath, &godirwalk.Options{
