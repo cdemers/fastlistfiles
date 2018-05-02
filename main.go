@@ -27,7 +27,7 @@ type ListFilesResult struct {
 func main() {
 	var dirname = flag.String("folder", ".", "The folder to scan.")
 	var sorted = flag.Bool("sort", false, "Sort files, defaults to unsorted.")
-	var includeDirs = flag.Bool("dirs", false, "Include directories, default to not.")
+	var includeDirs = flag.Bool("dirs", false, "Include directories, defaults to no.")
 	var expvarPort = flag.String("expvar-port", "", "The port number for the expvar instrumentation service.")
 	var workercount = flag.Int("workers", 20, "The number of workers to use, it can go pretty high.")
 
@@ -53,7 +53,7 @@ func main() {
 
 	// TODO: Reap threads completion message in parallel instead of waiting at
 	// the end of the list process.
-	jobResults := make(chan ListFilesResult, 100000000) // Woah! 100 millions FTW! :D
+	jobResults := make(chan ListFilesResult, 50000000) // Woah! 50 millions FTW! :D
 	defer close(jobResults)
 
 	// Start the workers

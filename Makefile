@@ -1,6 +1,6 @@
 MAJOR  = 0
 MINOR  = 8
-BUGFIX = 1
+BUGFIX = 4
 
 EXE_NAME = fastlistfiles
 
