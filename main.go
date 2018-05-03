@@ -4,6 +4,7 @@ import (
 	_ "expvar"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -25,11 +26,13 @@ type ListFilesResult struct {
 }
 
 func main() {
-	var dirname = flag.String("folder", ".", "The folder to scan.")
+	// var isCompleted bool
+
+	var basePath = flag.String("folder", ".", "The folder to scan.")
 	var sorted = flag.Bool("sort", false, "Sort files, defaults to unsorted.")
 	var includeDirs = flag.Bool("dirs", false, "Include directories, defaults to no.")
 	var expvarPort = flag.String("expvar-port", "", "The port number for the expvar instrumentation service.")
-	var workercount = flag.Int("workers", 20, "The number of workers to use, it can go pretty high.")
+	var includeHiddens = flag.Bool("include-hiddens", false, "Include hidden files and folders. False by default.")
 
 	flag.Parse()
 
@@ -46,88 +49,33 @@ func main() {
 		}()
 	}
 
-	var jobsIdCounter int
+	completionChannel := make(chan bool)
 
-	jobs := make(chan ListFilesJob, *workercount*10)
-	defer close(jobs)
+	go worker(completionChannel, *basePath, *includeDirs, *sorted, *includeHiddens)
 
-	// TODO: Reap threads completion message in parallel instead of waiting at
-	// the end of the list process.
-	jobResults := make(chan ListFilesResult, 50000000) // Woah! 50 millions FTW! :D
-	defer close(jobResults)
-
-	// Start the workers
-	for workerId := 0; workerId < *workercount; workerId++ {
-		go worker(workerId, jobs, jobResults)
-	}
-
-	// folders, err := splitFoldersTree(*dirname)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// 	os.Exit(1)
-	// }
-	//
-	// for _, v := range folders {
-	// 	fmt.Println(v)
-	// }
-
-	{
-		jobs <- ListFilesJob{
-			JobID:       jobsIdCounter,
-			BasePath:    *dirname,
-			IncludeDirs: *includeDirs,
-			Sorted:      *sorted,
-		}
-
-		jobsIdCounter++
-	}
-
-	for a := 1; a <= jobsIdCounter; a++ {
-		_ = <-jobResults
-		// fmt.Printf("Result Worker %d job %d, Error: %v\n", r.WorkerID, r.JobID, r.Error)
-	}
+	_ = <-completionChannel
 
 }
 
-func worker(workerID int, jobs <-chan ListFilesJob, results chan<- ListFilesResult) {
+func worker(completed chan<- bool, basePath string, includeDirs, sorted, includeHiddens bool) {
 
-	for job := range jobs {
-
-		err := godirwalk.Walk(job.BasePath, &godirwalk.Options{
-			Callback: func(osPathname string, de *godirwalk.Dirent) error {
-				if de.IsDir() && !job.IncludeDirs {
-					return nil
-				}
-				fmt.Printf("%s\n", osPathname)
-				return nil
-			},
-			Unsorted: !job.Sorted,
-		})
-
-		results <- ListFilesResult{
-			WorkerID: workerID,
-			Error:    err,
-			JobID:    job.JobID,
-		}
-
-	}
-
-}
-
-// WARNING: Version 0.8 in progress, use version 0.6 if you want something stable.
-func splitFoldersTree(basePath string) (paths []string, err error) {
-
-	err = godirwalk.Walk(basePath, &godirwalk.Options{
+	err := godirwalk.Walk(basePath, &godirwalk.Options{
 		Callback: func(osPathname string, de *godirwalk.Dirent) error {
-			if !de.IsDir() {
+			if !includeDirs && de.IsDir() {
 				return nil
 			}
-
-			fmt.Printf("Folder: %s\n", osPathname)
+			if !includeHiddens && osPathname[0:1] == "." {
+				return nil
+			}
+			fmt.Printf("%s\n", osPathname)
 			return nil
 		},
-		Unsorted: true,
+		Unsorted: !sorted,
 	})
 
-	return []string{"aaa", "bbb"}, err
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	completed <- true
 }
