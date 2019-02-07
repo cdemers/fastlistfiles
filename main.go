@@ -1,7 +1,6 @@
 package main
 
 import (
-	_ "expvar"
 	"flag"
 	"fmt"
 	"log"
@@ -12,27 +11,13 @@ import (
 	"github.com/karrick/godirwalk"
 )
 
-type ListFilesJob struct {
-	JobID       int
-	BasePath    string
-	IncludeDirs bool
-	Sorted      bool
-}
-
-type ListFilesResult struct {
-	WorkerID int
-	JobID    int
-	Error    error
-}
-
 func main() {
-	// var isCompleted bool
 
-	var basePath = flag.String("folder", ".", "The folder to scan.")
+	var basepath = flag.String("folder", ".", "The folder to scan.")
 	var sorted = flag.Bool("sort", false, "Sort files, defaults to unsorted.")
 	var includeDirs = flag.Bool("dirs", false, "Include directories, defaults to no.")
 	var expvarPort = flag.String("expvar-port", "", "The port number for the expvar instrumentation service.")
-	var includeHiddens = flag.Bool("include-hiddens", false, "Include hidden files and folders. False by default.")
+	var includeHiddens = flag.Bool("include-hiddens", false, "(DISABLED in v0.6.3, hidden files and folders will always be ignored) Include hidden files and folders. False by default.")
 
 	flag.Parse()
 
@@ -51,26 +36,31 @@ func main() {
 
 	completionChannel := make(chan bool)
 
-	go worker(completionChannel, *basePath, *includeDirs, *sorted, *includeHiddens)
+	go worker(completionChannel, *basepath, *includeDirs, *sorted, *includeHiddens)
 
 	_ = <-completionChannel
 
 }
 
-func worker(completed chan<- bool, basePath string, includeDirs, sorted, includeHiddens bool) {
+func worker(completed chan<- bool, basepath string, includeDirs, sorted, includeHiddens bool) {
 
-	err := godirwalk.Walk(basePath, &godirwalk.Options{
+	err := godirwalk.Walk(basepath, &godirwalk.Options{
+		Unsorted:      !sorted,
+		IgnoreHiddens: !includeHiddens,
 		Callback: func(osPathname string, de *godirwalk.Dirent) error {
 			if !includeDirs && de.IsDir() {
-				return nil
-			}
-			if !includeHiddens && osPathname[0:1] == "." {
 				return nil
 			}
 			fmt.Printf("%s\n", osPathname)
 			return nil
 		},
-		Unsorted: !sorted,
+		ErrorCallback: func(osPathname string, err error) godirwalk.ErrorAction {
+			if err.Error() == "Callback: SKIPx" {
+				return godirwalk.SkipNode
+			}
+			fmt.Fprintf(os.Stderr, "ERROR: %s\n", err)
+			return godirwalk.SkipNode
+		},
 	})
 
 	if err != nil {
