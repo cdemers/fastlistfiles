@@ -1,13 +1,29 @@
 kind: pipeline
 name: default
 
+workspace:
+  base: /go
+  path: src/gitwk.com/cdemers/fastfindfiles
+
 steps:
-- name: backend
-  image: golang
-  commands:
-  - go get
-  - go build
-  - go test
+  - name: test
+    image: golang
+    commands:
+      - go get
+      - go test
+  - name: build
+    image: golang
+    commands:
+      - go get
+      - go build -o output
+      - chmod +x output
+  - name: run
+    image: golang
+    commands:
+      - go get
+      - go build -o output
+      - chmod +x output
+      - ./output
 
 trigger:
   event:
