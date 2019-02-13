@@ -5,6 +5,7 @@ steps:
 - name: backend
   image: golang
   commands:
+  - go get
   - go build
   - go test
 
